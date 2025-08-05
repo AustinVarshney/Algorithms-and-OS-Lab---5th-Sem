@@ -13,7 +13,7 @@ struct AdjList{
     int count = 0;
 };
 
-struct ArrayDeque{
+struct Deque{
     int data[2*MAXN];
     int head = MAXN;
     int tail = MAXN;
@@ -42,7 +42,7 @@ struct ArrayDeque{
 int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]){
     int dist[MAXN];
     int parent[MAXN];
-    ArrayDeque dq;
+    Deque dq;
 
     for (int i = 0; i < n; i++){
         dist[i] = INT8_MAX;
