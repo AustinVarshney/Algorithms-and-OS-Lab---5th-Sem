@@ -4,26 +4,24 @@
 
 using namespace std;
 
-const int MAXN = 100;    // Change as per maximum nodes
-const int MAXDEG = 100;  // Max degree per node
+const int MAXN = 100;
 
-struct Edge {
+struct Edge{
     int to;
     bool isBackbone;
 };
 
-// Adjacency list using arrays
-struct AdjList {
-    Edge edges[MAXDEG];
-    int count = 0;  // how many edges are stored
+struct AdjList{
+    Edge edges[MAXN];
+    int count = 0;
 };
 
-int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]) {
+int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]){
     int dist[MAXN];
     int parent[MAXN];
     deque<int> dq;
 
-    for(int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++){
         dist[i] = INT8_MAX;
         parent[i] = -1;
     }
@@ -31,16 +29,16 @@ int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]) 
     dist[source] = 0;
     dq.push_front(source);
 
-    while (!dq.empty()) {
+    while (!dq.empty()){
         int u = dq.front();
         dq.pop_front();
 
-        for (int idx = 0; idx < graph[u].count; idx++) {
+        for (int idx = 0; idx < graph[u].count; idx++){
             Edge &edge = graph[u].edges[idx];
             int v = edge.to;
             int weight = edge.isBackbone ? 0 : 1;
 
-            if (dist[u] + weight < dist[v]) {
+            if (dist[u] + weight < dist[v]){
                 dist[v] = dist[u] + weight;
                 parent[v] = u;
 
@@ -52,9 +50,6 @@ int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]) 
         }
     }
 
-    // Reconstruct path into the provided array "path"
-    if (dist[dest] == INT8_MAX) return 0; // no path
-
     int len = 0;
     for (int at = dest; at != -1; at = parent[at])
         path[len++] = at;
@@ -63,16 +58,24 @@ int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]) 
     return len;
 }
 
-int main() {
-    int n = 5;
+int main(){
+    int n = 6;
     AdjList graph[MAXN];
 
-    // Build graph
-    graph[0].edges[graph[0].count++] = {1, true};
-    graph[1].edges[graph[1].count++] = {0, true};
+    graph[0].edges[graph[0].count++] = {1, false};
+    graph[1].edges[graph[1].count++] = {0, false};
 
-    graph[2].edges[graph[2].count++] = {1, true};
-    graph[1].edges[graph[1].count++] = {2, true};
+    graph[0].edges[graph[0].count++] = {4, false};
+    graph[4].edges[graph[4].count++] = {0, false};
+    
+    graph[0].edges[graph[0].count++] = {5, false};
+    graph[5].edges[graph[5].count++] = {0, false};
+
+    graph[2].edges[graph[2].count++] = {1, false};
+    graph[1].edges[graph[1].count++] = {2, false};
+
+    graph[3].edges[graph[3].count++] = {1, true};
+    graph[1].edges[graph[1].count++] = {3, true};
 
     graph[2].edges[graph[2].count++] = {3, true};
     graph[3].edges[graph[3].count++] = {2, true};
@@ -80,22 +83,18 @@ int main() {
     graph[4].edges[graph[4].count++] = {3, true};
     graph[3].edges[graph[3].count++] = {4, true};
 
-    graph[4].edges[graph[4].count++] = {0, false};
-    graph[0].edges[graph[0].count++] = {4, false};
+    graph[4].edges[graph[4].count++] = {5, true};
+    graph[5].edges[graph[5].count++] = {4, true};
 
-    int source = 0, destination = 4;
+    int source = 4, destination = 1;
 
     int path[MAXN];
     int length = findPreferredPath(n, source, destination, graph, path);
 
-    if (length > 0) {
-        cout << "Preferred path (max backbone edges): ";
-        for (int i = 0; i < length; i++)
-            cout << path[i] << " ";
-        cout << endl;
-    } else {
-        cout << "No path found.\n";
-    }
+    cout << "Preferred path (max backbone edges): ";
+    for (int i = 0; i < length; i++)
+        cout << path[i] << " ";
+    cout << endl;
 
     return 0;
 }
