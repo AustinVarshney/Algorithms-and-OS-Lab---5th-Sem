@@ -73,8 +73,8 @@ int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]){
     }
 
     int len = 0;
-    for (int at = dest; at != -1; at = parent[at])
-        path[len++] = at;
+    for (int i = dest; i != -1; i = parent[i])
+        path[len++] = i;
 
     //Reversing the Path
     int st = 0, end = len-1;
@@ -89,31 +89,25 @@ int main(){
     int n = 6;
     AdjList graph[MAXN];
 
-    graph[0].edges[graph[0].count++] = {1, false};
-    graph[1].edges[graph[1].count++] = {0, false};
+    graph[0].edges[graph[0].count++] = {1, true};
+    graph[1].edges[graph[1].count++] = {0, true};
 
-    graph[0].edges[graph[0].count++] = {4, false};
-    graph[4].edges[graph[4].count++] = {0, false};
-    
-    graph[0].edges[graph[0].count++] = {5, false};
-    graph[5].edges[graph[5].count++] = {0, false};
+    graph[0].edges[graph[0].count++] = {2, true};
+    graph[2].edges[graph[2].count++] = {0, true};
 
-    graph[2].edges[graph[2].count++] = {1, false};
-    graph[1].edges[graph[1].count++] = {2, false};
+    graph[0].edges[graph[0].count++] = {5, true};
+    graph[5].edges[graph[5].count++] = {0, true};
 
-    graph[3].edges[graph[3].count++] = {1, true};
-    graph[1].edges[graph[1].count++] = {3, true};
-
-    graph[2].edges[graph[2].count++] = {3, true};
     graph[3].edges[graph[3].count++] = {2, true};
+    graph[2].edges[graph[2].count++] = {3, true};
 
-    graph[4].edges[graph[4].count++] = {3, true};
     graph[3].edges[graph[3].count++] = {4, true};
+    graph[4].edges[graph[4].count++] = {3, true};
 
-    graph[4].edges[graph[4].count++] = {5, true};
     graph[5].edges[graph[5].count++] = {4, true};
+    graph[4].edges[graph[4].count++] = {5, true};
 
-    int source = 0, destination = 2;
+    int source = 2, destination = 5;
 
     int path[MAXN];
     int length = findPreferredPath(n, source, destination, graph, path);
