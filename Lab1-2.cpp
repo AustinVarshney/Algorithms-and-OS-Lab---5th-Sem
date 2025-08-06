@@ -76,13 +76,10 @@ int findPreferredPath(int n, int source, int dest, AdjList graph[], int path[]){
     for (int at = dest; at != -1; at = parent[at])
         path[len++] = at;
 
+    //Reversing the Path
     int st = 0, end = len-1;
     while(st <= end){
-        int temp = path[st];
-        path[st] = path[end];
-        path[end] = temp;
-        st++;
-        end--;
+        swap(path[st++], path[end--]);
     }
 
     return len;
