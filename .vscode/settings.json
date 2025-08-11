@@ -3,6 +3,7 @@
         "*.embeddedhtml": "html",
         "*.ejs": "html",
         "*.js": "javascriptreact",
+        "ostream": "cpp",
         "iostream": "cpp"
     }
 }
