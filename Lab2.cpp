@@ -90,7 +90,6 @@ int main(){
 	
 	while(true){
         int u, v, weight;
-        char prop1, prop2;
 
         cout<<"Enter 1st Node : ";
         cin>>u;
