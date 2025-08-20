@@ -41,7 +41,7 @@ public class Lab21 {
 
             TE.add(graph[idx][Nbr_TV[idx]]);
             minLength += graph[idx][Nbr_TV[idx]];
-            System.out.println(idx + " - " + Nbr_TV[idx] + " -> " + graph[idx][Nbr_TV[idx]]);
+            System.out.println(Nbr_TV[idx] + " - " + idx + " -> (" + graph[idx][Nbr_TV[idx]] + ")");
 
             for (int j = 0; j < n; j++) {
                 boolean includeNode = filterByGround ? (verticeProp[j] == 1) : true;
@@ -106,6 +106,8 @@ public class Lab21 {
 
             graph[u][v] = weight;
             graph[v][u] = weight;
+
+            System.out.println("<--------------Edge is added-------------->");
         }
 
         int minG = PrimsAlgo(graph, n, firstG, verticeProp, true);
@@ -114,6 +116,8 @@ public class Lab21 {
         System.out.println("Value of answer2 is : " + minN);
         int minL = PrimsAlgo(graph, n, 0, verticeProp, false);
         System.out.println("Value of answer3 is : " + minL);
+
+        System.out.println("Total Length of the wire required : " + (minL + minG + minN));
 
         sc.close();
     }
