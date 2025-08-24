@@ -116,7 +116,7 @@ public class Lab21 {
         System.out.println("Value of answer2 is : " + minN);
         int minL = PrimsAlgo(graph, n, 0, verticeProp, false);
         System.out.println("Value of answer3 is : " + minL);
-
+ 
         System.out.println("Total Length of the wire required : " + (minL + minG + minN));
 
         sc.close();
