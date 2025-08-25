@@ -32,6 +32,32 @@ public:
     }
 };
 
+template <typename T>
+void printSingleStack(string name, Stack<T> st) {
+    cout << name << ": ";
+    if (st.empty()) {
+        cout << "[ empty ]";
+    } else {
+        cout << "[ ";
+        while (!st.empty()) {
+            cout << st.top() << " ";
+            st.pop();
+        }
+        cout << "]";
+    }
+    cout << "\n";
+};
+
+template <typename T>
+void printStacks(int stepNo, Stack<T> mainStack, Stack<T> stack1, Stack<T> stack2) {
+    cout << "--- Step " << stepNo << " ---"<<endl;
+
+    printSingleStack("mainStack", mainStack);
+    printSingleStack("stack1   ", stack1);
+    printSingleStack("stack2   ", stack2);
+    cout << "-------------------\n";
+}
+
 int main(){
     Stack<string> mainStack;
     string colors[MAX];
@@ -39,7 +65,7 @@ int main(){
 
     while(true){
         string col;
-        cout<<"Enter the colour : ";
+        cout<<"Enter the colour or 0 to stop : ";
         cin>>col;
 
         if(col == "0") break;
@@ -85,9 +111,11 @@ int main(){
         if(topCol == colors[totColors-1]){
             stack1.push(topCol);
             cout<<totTransfer+1<<". "<<topCol<<" is going from mainStack to Stack 1"<<endl;
+            printStacks(totTransfer+1, mainStack, stack1, stack2);
         } else{
             stack2.push(topCol);
             cout<<totTransfer+1<<". "<<topCol<<" is going from mainStack to Stack 2"<<endl;
+            printStacks(totTransfer+1, mainStack, stack1, stack2);
         }
         
         totTransfer++;
@@ -95,8 +123,9 @@ int main(){
     
     while(stack1.size() != 0){
         mainStack.push(stack1.top());
-        cout<<totTransfer+1<<". "<<stack1.top()<<" is going from Stack 1 to mainStack"<<endl;
         stack1.pop();
+        cout<<totTransfer+1<<". "<<stack1.top()<<" is going from Stack 1 to mainStack"<<endl;
+        printStacks(totTransfer+1, mainStack, stack1, stack2);
         totTransfer++;
     }
 
@@ -110,10 +139,12 @@ int main(){
                 if(topCol == colors[i]){
                     mainStack.push(topCol);
                     cout<<totTransfer+1<<". "<<topCol<<" is going from Stack 2 to mainStack"<<endl;
+                    printStacks(totTransfer+1, mainStack, stack1, stack2);
                     totTransfer++;
                 } else{
                     stack1.push(topCol);
                     cout<<totTransfer+1<<". "<<topCol<<" is going from Stack 2 to Stack 1"<<endl;
+                    printStacks(totTransfer+1, mainStack, stack1, stack2);
                     totTransfer++;
                 }        
             }
@@ -126,10 +157,12 @@ int main(){
                 if(topCol == colors[i]){
                     mainStack.push(topCol);
                     cout<<totTransfer+1<<". "<<topCol<<" is going from Stack 1 to mainStack"<<endl;
+                    printStacks(totTransfer+1, mainStack, stack1, stack2);
                     totTransfer++;
                 } else{
                     stack2.push(topCol);
                     cout<<totTransfer+1<<". "<<topCol<<" is going from Stack 1 to Stack 2"<<endl;
+                    printStacks(totTransfer+1, mainStack, stack1, stack2);
                     totTransfer++;
                 }        
             }
@@ -137,7 +170,7 @@ int main(){
         }            
     }
 
-    cout<<"Total Transfer of the contents are : "<<totTransfer<<endl;
+    cout<<"Total no. of steps to move the contents are : "<<totTransfer<<endl;
 
     cout << "Final Stack is :"<<endl;
     Stack<string> temp = mainStack;
