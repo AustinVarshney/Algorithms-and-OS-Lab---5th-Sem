@@ -61,6 +61,10 @@ void printStacks(int stepNo, Stack<T> mainStack, Stack<T> stack1, Stack<T> stack
 int main(){
     Stack<string> mainStack;
 
+    string maxColor;
+    string minColor;
+
+    bool firstInput = true;
     while(true){
         string col;
         cout<<"Enter the colour or 0 to stop : ";
@@ -68,15 +72,33 @@ int main(){
 
         if(col == "0") break;
 
+        if(firstInput) {
+            minColor = col;
+            maxColor = col;
+            firstInput = false;
+        } else {
+            if(col < minColor) minColor = col;
+            if(col > maxColor) maxColor = col;
+        }
+
         mainStack.push(col);
     }
+
+
+    cout<<"Minimum color: "<<minColor<<endl;
+    cout<<"Maximum color: "<<maxColor<<endl;
 
     Stack<string> stack1;
     Stack<string> stack2;
     int totTransfer = 0;
     
+    int totMinColCount = 0, totMaxColCount = 0;
+
     while(!mainStack.empty()){
         string topEl = mainStack.top();
+
+        if(topEl == minColor) totMinColCount++;
+        if(topEl == maxColor) totMaxColCount++;
 
         if(!stack1.empty()){
             if(topEl > stack1.top()){
@@ -100,10 +122,26 @@ int main(){
             }
         }
         mainStack.pop();
-        stack1.push(topEl);
-        cout<<totTransfer+1<<". "<<topEl<<" is going from mainStack to Stack 1"<<endl;
-        printStacks(totTransfer+1, mainStack, stack1, stack2);
-        totTransfer++;
+        if(!mainStack.empty()){
+            string nextEl = mainStack.top();
+
+            if(topEl < nextEl){
+                stack2.push(topEl);
+                cout<<totTransfer+1<<". "<<topEl<<" is going from mainStack to Stack 2"<<endl;
+                printStacks(totTransfer+1, mainStack, stack1, stack2);
+                totTransfer++;
+            } else{
+                stack1.push(topEl);
+                cout<<totTransfer+1<<". "<<topEl<<" is going from mainStack to Stack 1"<<endl;
+                printStacks(totTransfer+1, mainStack, stack1, stack2);
+                totTransfer++;
+            }
+        } else{
+            stack1.push(topEl);
+            cout<<totTransfer+1<<". "<<topEl<<" is going from mainStack to Stack 1"<<endl;
+            printStacks(totTransfer+1, mainStack, stack1, stack2);
+            totTransfer++;
+        }
     }
 
     int totElementStack1 = stack1.size();
@@ -145,8 +183,8 @@ int main(){
         }
     }
 
-    if(totElementStack1 <= totElementStack2){
-        while(!stack1.empty()){
+    if((totElementStack1 - totMaxColCount) <= (totElementStack2 - totMinColCount)){
+        while(stack1.size() > totMaxColCount){
             string tempEl = stack1.top();
             stack2.push(tempEl);
             stack1.pop();
@@ -154,6 +192,16 @@ int main(){
             printStacks(totTransfer+1, mainStack, stack1, stack2);
             totTransfer++;
         }
+
+        while(!stack1.empty()){
+            string tempEl = stack1.top();
+            mainStack.push(tempEl);
+            stack1.pop();
+            cout<<totTransfer+1<<". "<<tempEl<<" is going from Stack 1 to mainStack"<<endl;
+            printStacks(totTransfer+1, mainStack, stack1, stack2);
+            totTransfer++;
+        }
+
         while(!stack2.empty()){
             string tempEl = stack2.top();
             mainStack.push(tempEl);
@@ -163,7 +211,7 @@ int main(){
             totTransfer++;
         }
     } else{
-        while(!stack2.empty()){
+        while(stack2.size() > totMinColCount){
             string tempEl = stack2.top();
             stack1.push(tempEl);
             stack2.pop();
@@ -171,6 +219,16 @@ int main(){
             printStacks(totTransfer+1, mainStack, stack1, stack2);
             totTransfer++;
         }
+
+        while(!stack2.empty()){
+            string tempEl = stack2.top();
+            mainStack.push(tempEl);
+            stack2.pop();
+            cout<<totTransfer+1<<". "<<tempEl<<" is going from Stack 2 to mainStack"<<endl;
+            printStacks(totTransfer+1, mainStack, stack1, stack2);
+            totTransfer++;
+        }
+
         while(!stack1.empty()){
             string tempEl = stack1.top();
             mainStack.push(tempEl);
