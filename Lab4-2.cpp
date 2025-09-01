@@ -2,15 +2,13 @@
 using namespace std;
 
 const int MAX = 100;
-const int INF_POS = 1000000000;
-const int INF_NEG = -1000000000;
+const int BLOCKED = -999;
+const int INF = 1000000000;
 
 struct Node {
-    int value; 
-    int steps; 
-    int x, y;  
-    
-    // Constructor for easier initialization
+    int value;
+    int steps;
+    int x, y;
     Node(int v = 0, int s = 0, int x_coord = 0, int y_coord = 0) {
         value = v;
         steps = s;
@@ -23,17 +21,15 @@ struct Node {
 Node heapArr[MAX * MAX];
 int heapSize = 0;
 
-// Function to check if node a is better than node b
-// Priority: higher value first, then fewer steps
 bool isBetter(const Node& a, const Node& b) {
-    if (a.value == b.value) {
-        return a.steps < b.steps; // fewer steps preferred
-    }
-    return a.value > b.value; // higher value preferred
+    // Prioritize lower steps first, then higher value
+    if (a.steps == b.steps) return a.value > b.value;
+    return a.steps < b.steps;
 }
 
 void pushHeap(Node node) {
-    heapArr[++heapSize] = node;
+    heapSize++;
+    heapArr[heapSize] = node;
     int i = heapSize;
     while (i > 1 && isBetter(heapArr[i], heapArr[i/2])) {
         Node temp = heapArr[i];
@@ -43,13 +39,13 @@ void pushHeap(Node node) {
     }
 }
 
-bool heapEmpty() { 
-    return heapSize == 0; 
-}
+bool heapEmpty() { return heapSize == 0; }
 
 Node popHeap() {
+    if (heapSize == 0) return Node();
     Node top = heapArr[1];
-    heapArr[1] = heapArr[heapSize--];
+    heapArr[1] = heapArr[heapSize];
+    heapSize--;
     int i = 1;
     while (true) {
         int left = i*2, right = i*2+1, largest = i;
@@ -69,7 +65,7 @@ int main() {
     int arr[MAX][MAX];
     int bestValue[MAX][MAX];
     int bestSteps[MAX][MAX];
-    int parentX[MAX][MAX], parentY[MAX][MAX]; // to reconstruct path
+    int parentX[MAX][MAX], parentY[MAX][MAX];
 
     int n, m;
     cout << "Enter the no. of rows : ";
@@ -77,12 +73,10 @@ int main() {
     cout << "Enter the no. of columns : ";
     cin >> m;
 
-    // Initialize full grid to 0
     for (int i=0; i<n; i++)
         for (int j=0; j<m; j++)
             arr[i][j] = 0;
 
-    // Input cells
     cout << "\nEnter cells (x y val), val=-999 means blocked, end with x=-1:\n";
     while (true) {
         int x, y, val;
@@ -90,94 +84,88 @@ int main() {
         cin >> x;
         if (x == -1) break;
         if (x < 0 || x >= n) continue;
-
         cout << "Enter the y-value : ";
         cin >> y;
         if (y < 0 || y >= m) continue;
-
         cout << "Enter +ve gift, -ve pothole, or -999 blocked: ";
         cin >> val;
         arr[x][y] = val;
     }
 
-    // Print grid
     cout << "\nGRID:\n";
     for (int i=0; i<n; i++) {
         for (int j=0; j<m; j++) {
-            if (arr[i][j] == -999) cout << "X ";
+            if (arr[i][j] == BLOCKED) cout << "X ";
             else cout << arr[i][j] << " ";
         }
         cout << endl;
     }
 
-    // Initialize best arrays
-    for (int i=0;i<n;i++){
+    for (int i=0;i<n;i++)
         for (int j=0;j<m;j++) {
-            bestValue[i][j] = -99999999; // very low
-            bestSteps[i][j] = 99999999;  // very high
+            bestValue[i][j] = -INF;
+            bestSteps[i][j] = INF;
             parentX[i][j] = -1;
             parentY[i][j] = -1;
         }
-    }
 
-    // Directions
     int dx[4] = {-1,1,0,0};
     int dy[4] = {0,0,-1,1};
 
-    // Start at bottom-right
-    if (arr[n-1][m-1] == -999) {
+    if (arr[n-1][m-1] == BLOCKED) {
         cout << "\nEntry point blocked!\n";
         return 0;
     }
 
     heapSize = 0;
-    pushHeap({arr[n-1][m-1], 0, n-1, m-1});
+    pushHeap(Node(arr[n-1][m-1], 0, n-1, m-1));
     bestValue[n-1][m-1] = arr[n-1][m-1];
     bestSteps[n-1][m-1] = 0;
 
     while (!heapEmpty()) {
         Node cur = popHeap();
         int x = cur.x, y = cur.y;
+        if (x == 0 && y == 0) break; // Stop when exit is reached
 
         for (int k=0;k<4;k++) {
             int nx = x+dx[k], ny = y+dy[k];
             if(nx<0||ny<0||nx>=n||ny>=m) continue;
-            if(arr[nx][ny]==-999) continue; // blocked
+            if(arr[nx][ny]==BLOCKED) continue;
 
             int newValue = cur.value + arr[nx][ny];
             int newSteps = cur.steps + 1;
 
-            if (newValue > bestValue[nx][ny] ||
-                (newValue==bestValue[nx][ny] && newSteps<bestSteps[nx][ny])) {
+            // Prioritize lower steps, then higher value
+            if (newSteps < bestSteps[nx][ny] ||
+                (newSteps == bestSteps[nx][ny] && newValue > bestValue[nx][ny])) {
                 bestValue[nx][ny] = newValue;
-                // arr[nx][ny] = 0;
                 bestSteps[nx][ny] = newSteps;
                 parentX[nx][ny] = x;
                 parentY[nx][ny] = y;
-                pushHeap({newValue,newSteps,nx,ny});
+                pushHeap(Node(newValue,newSteps,nx,ny));
             }
         }
     }
 
-    // Check result at (0,0)
-    if (bestValue[0][0] == -99999999) {
+    if (bestValue[0][0] == -INF) {
         cout<<"\nNo valid path exists!\n";
         return 0;
     }
 
-    cout<<"\nMaximum value collected: "<<bestValue[0][0]<<"\n";
+    cout<<"Maximum value collected: "<<bestValue[0][0]<<"\n";
     cout<<"Minimum steps taken: "<<bestSteps[0][0]<<"\n";
 
-    // Reconstruct path
+    // Path reconstruction
     int pathX[MAX*MAX], pathY[MAX*MAX];
     int len=0;
     int cx=0, cy=0;
-    while (cx!=-1 && cy!=-1) {
+    while (true) {
         pathX[len]=cx;
         pathY[len]=cy;
         int px=parentX[cx][cy], py=parentY[cx][cy];
-        cx=px; cy=py;
         len++;
+        if (px == -1 && py == -1) break;
+        cx=px; cy=py;
     }
 
     cout<<"Path from entry (bottom-right) to exit (top-left):\n";

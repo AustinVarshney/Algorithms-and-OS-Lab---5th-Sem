@@ -19,6 +19,7 @@ public class Lab42 {
     static int heapSize = 0;
 
     static boolean isBetter(Node a, Node b) {
+        // Use the same logic as Lab4-3.cpp
         if (a.steps == b.steps) return a.value > b.value;
         return a.steps < b.steps;
     }
@@ -61,30 +62,42 @@ public class Lab42 {
         System.out.print("\033[H\033[2J");
         System.out.flush();
         System.out.println("\nGrid:\n");
+        String horizontal = "\033[45m+"; // Magenta background for grid lines
+        for (int j = 0; j < m; j++) horizontal += "------+";
         for (int i=0; i<n; i++) {
+            System.out.println(horizontal + "\033[0m");
             for (int j=0; j<m; j++) {
                 boolean isRobot = (i == robotX && j == robotY);
                 boolean isPath = false;
                 for (int k = 0; k <= step && k < pathLen; k++) {
                     if (i == pathX[pathLen-1-k] && j == pathY[pathLen-1-k]) isPath = true;
                 }
-                String space = "     "; // 5 spaces for extra spacing
+                String cell = "      ";
+                String color = "\033[47m"; // Default: white background
                 if (isRobot) {
-                    System.out.print("\033[43m" + space + "R" + space + "\033[0m");
+                    color = "\033[43m\033[30m"; // Yellow bg, black text
+                    cell = "  R   ";
                 } else if (arr[i][j] == BLOCKED) {
-                    System.out.print("\033[40m" + space + "X" + space + "\033[0m");
+                    color = "\033[41m\033[97m"; // Red bg, white text
+                    cell = "  X   ";
                 } else if (isPath) {
-                    System.out.print("\033[44m" + space + "." + space + "\033[0m");
-                } else if (arr[i][j] > 0) {
-                    System.out.print("\033[32m" + space + arr[i][j] + space + "\033[0m");
+                    color = "\033[44m\033[97m"; // Blue bg, white text
+                    cell = "  .   ";
                 } else if (arr[i][j] < 0) {
-                    System.out.print("\033[31m" + space + arr[i][j] + space + "\033[0m");
+                    color = "\033[101m\033[30m"; // Bright red bg, black text
+                    cell = String.format("%5d ", arr[i][j]);
+                } else if (arr[i][j] > 0) {
+                    color = "\033[102m\033[30m"; // Bright green bg, black text
+                    cell = String.format("%5d ", arr[i][j]);
                 } else {
-                    System.out.print("\033[37m" + space + arr[i][j] + space + "\033[0m");
+                    color = "\033[47m\033[30m"; // White bg, black text
+                    cell = "  0   ";
                 }
+                System.out.print(color + "|" + cell + "\033[0m");
             }
-            System.out.println("\n\n"); // Extra lines for more space between rows
+            System.out.println("|\033[0m");
         }
+        System.out.println(horizontal + "\033[0m\n");
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -146,12 +159,16 @@ public class Lab42 {
             Node cur = popHeap();
             int x = cur.x, y = cur.y;
             if (x == 0 && y == 0) break;
+
             for (int k=0;k<4;k++) {
                 int nx = x+dx[k], ny = y+dy[k];
                 if(nx<0||ny<0||nx>=n||ny>=m) continue;
                 if(arr[nx][ny]==BLOCKED) continue;
+
                 int newValue = cur.value + arr[nx][ny];
                 int newSteps = cur.steps + 1;
+
+                // Use the same update logic as Lab4-3.cpp
                 if (newSteps < bestSteps[nx][ny] ||
                     (newSteps == bestSteps[nx][ny] && newValue > bestValue[nx][ny])) {
                     bestValue[nx][ny] = newValue;

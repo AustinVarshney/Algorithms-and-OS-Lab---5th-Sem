@@ -27,6 +27,7 @@ public class Lab41 extends JPanel {
     static int heapSize = 0;
 
     static boolean isBetter(Node a, Node b) {
+        // Use the same logic as Lab4-3.cpp
         if (a.steps == b.steps) return a.value > b.value;
         return a.steps < b.steps;
     }
@@ -196,6 +197,7 @@ public class Lab41 extends JPanel {
                 int newValue = cur.value + arr[nx][ny];
                 int newSteps = cur.steps + 1;
 
+                // Use the same update logic as Lab4-3.cpp
                 if (newSteps < bestSteps[nx][ny] ||
                     (newSteps == bestSteps[nx][ny] && newValue > bestValue[nx][ny])) {
                     bestValue[nx][ny] = newValue;
