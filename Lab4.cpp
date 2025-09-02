@@ -1,147 +1,275 @@
 #include<iostream>
 using namespace std;
 
-const int MAX = 100;
+const int BLOCKED = -999;
+const int MAX_SIZE = 20;
+const int MAX_STATES = 1000;
 
-struct Node {
-    int value; // total collected value
-    int steps; // number of steps
-    int x, y;  // position
+void stringCopy(char* dest, const char* src){
+    int i = 0;
+    while (src[i] != '\0'){
+        dest[i] = src[i];
+        i++;
+    }
+    dest[i] = '\0';
+}
+
+int stringCompare(const char* str1, const char* str2){
+    int i = 0;
+    while (str1[i] != '\0' && str2[i] != '\0'){
+        if (str1[i] != str2[i]){
+            return str1[i] - str2[i];
+        }
+        i++;
+    }
+    return str1[i] - str2[i];
+}
+
+struct Coordinate{
+    int x, y;
 };
 
-// Manual heap implementation
-Node heapArr[MAX*MAX];
-int heapSize = 0;
-
-bool isBetter(Node a, Node b) {
-    // Higher value first, if tie then lower steps
-    if (a.value == b.value) return a.steps < b.steps;
-    return a.value > b.value;
-}
-
-void pushHeap(Node node) {
-    heapArr[++heapSize] = node;
-    int i = heapSize;
-    while (i > 1 && isBetter(heapArr[i], heapArr[i/2])) {
-        Node temp = heapArr[i];
-        heapArr[i] = heapArr[i/2];
-        heapArr[i/2] = temp;
-        i /= 2;
-    }
-}
-
-bool heapEmpty() {
-    return heapSize == 0;
-}
-
-Node popHeap() {
-    Node top = heapArr[1];
-    heapArr[1] = heapArr[heapSize--];
-    int i = 1;
-    while (true) {
-        int left = i*2, right = i*2+1, largest = i;
-        if (left <= heapSize && isBetter(heapArr[left], heapArr[largest])) largest = left;
-        if (right <= heapSize && isBetter(heapArr[right], heapArr[largest])) largest = right;
-        if (largest != i) {
-            Node temp = heapArr[i];
-            heapArr[i] = heapArr[largest];
-            heapArr[largest] = temp;
-            i = largest;
-        } else break;
-    }
-    return top;
-}
-
-int main(){
-    int arr[MAX][MAX];
-    int bestValue[MAX][MAX];
-    int bestSteps[MAX][MAX];
-
+struct Path{
+    Coordinate points[MAX_SIZE];
+    int length = 0;
     
-    int n, m;
-    cout<<"Enter the no. of rows : ";
-    cin>>n;
-    cout<<"Enter the no. of columns : ";
-    cin>>m;
-    
-    for (int i=0; i<n; i++){
-        for (int j=0; j<m; j++){
-            arr[i][j] = 0;
+    void addPoint(int x, int y){
+        if (length < MAX_SIZE){
+            points[length].x = x;
+            points[length].y = y;
+            length++;
         }
     }
     
-    while(true){
+    int countPoint(int x, int y){
+        int count = 0;
+        for (int i = 0; i < length; i++){
+            if (points[i].x == x && points[i].y == y){
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    void copyFrom(const Path& other){
+        length = other.length;
+        for (int i = 0; i < length; i++){
+            points[i] = other.points[i];
+        }
+    }
+};
+
+struct GiftSet{
+    char gifts[MAX_SIZE][10]; // "x,y" format
+    int count = 0;
+    
+    void addGift(int x, int y){
+        if (count < MAX_SIZE){
+            sprintf(gifts[count], "%d,%d", x, y);
+            count++;
+        }
+    }
+    
+    bool hasGift(int x, int y){
+        char key[20];
+        sprintf(key, "%d,%d", x, y);
+        for (int i = 0; i < count; i++){
+            if (stringCompare(gifts[i], key) == 0){
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    void copyFrom(const GiftSet& other){
+        count = other.count;
+        for (int i = 0; i < count; i++){
+            stringCopy(gifts[i], other.gifts[i]);
+        }
+    }
+};
+
+struct State{
+    int x, y, value, steps;
+    Path path;
+    GiftSet collected;
+    
+    void copyFrom(const State& other){
+        x = other.x;
+        y = other.y;
+        value = other.value;
+        steps = other.steps;
+        path.copyFrom(other.path);
+        collected.copyFrom(other.collected);
+    }
+};
+
+struct StateQueue{
+    State states[MAX_STATES];
+    int size = 0;
+    
+    bool isEmpty(){
+        return size == 0;
+    }
+    
+    void push(const State& state){
+        if (size < MAX_STATES){
+            states[size] = state;
+            size++;
+        }
+    }
+};
+
+void printGrid(int grid[MAX_SIZE][MAX_SIZE], int rows, int cols, int exitX, int exitY, const Path& path, const GiftSet& collected){
+    cout<<"Final Grid with Path:"<<endl;    
+    for (int i = 0; i < rows; i++){
+        for (int j = 0; j < cols; j++){
+            bool isOnPath = false;
+            for (int k = 0; k < path.length; k++){
+                if (path.points[k].x == i && path.points[k].y == j){
+                    isOnPath = true;
+                    break;
+                }
+            }
+            
+            if (i == exitX && j == exitY){
+                cout<<"E ";
+            } else if (isOnPath){
+                cout<<"* ";
+            } else if (grid[i][j] == BLOCKED){
+                cout<<"X ";
+            } else{
+                cout<<grid[i][j]<<" ";
+            }
+        }
+        cout<<endl;
+    }
+}
+
+int main(){
+    int rows, cols;    
+    cout<<"Enter the no. of rows : ";
+    cin >> rows;
+    cout<<"Enter the no. of columns : ";
+    cin >> cols;
+    
+    int grid[MAX_SIZE][MAX_SIZE];
+    for (int i = 0; i < rows; i++)
+        for (int j = 0; j < cols; j++)
+            grid[i][j] = 0;
+    
+    while (true){
         int x, y, val;
         cout<<"Enter the x-value : ";
-        cin>>x;
-        if(x == -1) break;
-        if(x < 0 || x >= n) continue;
+        cin >> x;
+        if (x == -1) break;
+        if (x < 0 || x >= rows) continue;
         cout<<"Enter the y-value : ";
-        cin>>y;
-        if(y < 0 || y >= m) continue;
-        cout<<"Enter either +ve value, -ve value, or -1 for blocked cell : ";
-        cin>>val;
-
-        arr[x][y] = val;
+        cin >> y;
+        if (y < 0 || y >= cols) continue;
+        cout<<"Enter +ve for gift, -ve for pothole, or -999 for blocked: ";
+        cin >> val;
+        grid[x][y] = val;
     }
-
-    for(int i=0; i<n; i++){
-        for(int j=0; j<m; j++){
-            cout<<arr[i][j]<<" ";
+    
+    cout<<"Initial Matrix is : "<<endl;
+    for (int i = 0; i < rows; i++){
+        for (int j = 0; j < cols; j++){
+            if (grid[i][j] == BLOCKED) cout<<"X ";
+            else cout<<grid[i][j]<<" ";
         }
         cout<<endl;
     }
 
-    // Initialize best arrays
-    for (int i=0;i<n;i++)
-        for (int j=0;j<m;j++) {
-            bestValue[i][j] = -1;
-            bestSteps[i][j] = -1;
-        }
-
-    // Directions: up, down, left, right
-    int dx[4] = {-1,1,0,0};
-    int dy[4] = {0,0,-1,1};
-
-    // Start at bottom-right
-    if (arr[n-1][m-1] == -1) {
-        cout<<"\nEntry point blocked!\n";
-        return 0;
+    int startX = rows - 1, startY = cols - 1;
+    
+    StateQueue queue;
+    
+    State initialState;
+    initialState.x = rows-1;
+    initialState.y = cols-1;
+    initialState.value = grid[startX][startY];
+    initialState.steps = 0;
+    initialState.path.addPoint(startX, startY);
+    if (grid[startX][startY] > 0){
+        initialState.collected.addGift(startX, startY);
     }
+    
+    queue.push(initialState);
+    
+    State bestState;
+    bestState.steps = -1;
+    double bestRatio = -999999.0;
+    
+    int dx[] ={-1, 1, 0, 0};
+    int dy[] ={0, 0, -1, 1};
+    
+    int maxSteps = rows * cols;
+    
+    while (!queue.isEmpty()){
+        State current = queue.states[0];
 
-    heapSize = 0;
-    pushHeap({arr[n-1][m-1],0,n-1,m-1});
-    bestValue[n-1][m-1] = arr[n-1][m-1];
-    bestSteps[n-1][m-1] = 0;
+        for (int i = 0; i < queue.size - 1; i++){
+            queue.states[i] = queue.states[i + 1];
+        }
+        queue.size--;
 
-     while (!heapEmpty()) {
-        Node cur = popHeap();
-        int x=cur.x, y=cur.y;
+        if (current.steps > maxSteps) continue;
 
-        if (x==0 && y==0) {
-            cout<<"\nMaximum value collected: "<<cur.value<<"\n";
-            cout<<"Minimum steps taken: "<<cur.steps<<"\n";
-            return 0;
+        if (current.x == 0 && current.y == 0){
+            double currentRatio = current.steps > 0 ? (double)current.value / current.steps : current.value;
+            if (bestState.steps == -1 || currentRatio > bestRatio){
+                bestState.copyFrom(current);
+                bestRatio = currentRatio;
+            }
+            continue;
         }
 
-        for (int k=0;k<4;k++) {
-            int nx=x+dx[k], ny=y+dy[k];
-            if(nx<0||ny<0||nx>=n||ny>=m) continue;
-            if(arr[nx][ny]==-1) continue; // blocked
+        for (int i = 0; i < 4; i++){
+            int newX = current.x + dx[i];
+            int newY = current.y + dy[i];
 
-            int newValue = cur.value + arr[nx][ny];
-            int newSteps = cur.steps + 1;
+            if (newX >= 0 && newX < rows && newY >= 0 && newY < cols && grid[newX][newY] != BLOCKED){
+                if (current.path.countPoint(newX, newY) > 0) continue;
 
-            if (newValue > bestValue[nx][ny] || 
-                (newValue==bestValue[nx][ny] && newSteps<bestSteps[nx][ny])) {
-                bestValue[nx][ny] = newValue;
-                bestSteps[nx][ny] = newSteps;
-                pushHeap({newValue,newSteps,nx,ny});
+                State newState;
+                newState.x = newX;
+                newState.y = newY;
+                newState.steps = current.steps + 1;
+                newState.value = current.value;
+                newState.path.copyFrom(current.path);
+                newState.path.addPoint(newX, newY);
+                newState.collected.copyFrom(current.collected);
+
+                int cellValue = grid[newX][newY];
+                if (cellValue > 0){
+                    if (!current.collected.hasGift(newX, newY)){
+                        newState.value += cellValue;
+                        newState.collected.addGift(newX, newY);
+                    }
+                } else if (cellValue < 0){
+                    newState.value += cellValue;
+                }
+                queue.push(newState);
             }
         }
     }
-
-    cout<<"\nNo valid path exists!\n";
-
+    
+    if (bestState.steps == -1){
+        cout<<"No valid path exists!"<<endl;
+        return 0;
+    }
+    
+    cout<<"Steps = "<<bestState.steps<<", Value = "<<bestState.value<<endl;
+    
+    cout<<"Path from entry (bottom-right) to exit (top-left):\n";
+    for (int i = 0; i < bestState.path.length; i++){
+        cout<<"("<<bestState.path.points[i].x<<","<<bestState.path.points[i].y<<")";
+        if (i < bestState.path.length - 1) cout<<" -> ";
+    }
+    cout<<endl;
+    
+    printGrid(grid, rows, cols, 0, 0, bestState.path, bestState.collected);    
+    cout<<"Robot has reached the exit!"<<endl;    
     return 0;
 }
