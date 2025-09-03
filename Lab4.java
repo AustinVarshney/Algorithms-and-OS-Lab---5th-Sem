@@ -354,7 +354,7 @@ public class Lab4{
 
             if (current.x == endX && current.y == endY){
                 double currentRatio = current.steps > 0 ? (double)current.value / current.steps : current.value;
-                if (bestState.steps == -1 || currentRatio > bestRatio){
+                if (bestState.steps == -1 || currentRatio > bestRatio || (Math.abs(currentRatio - bestRatio) < 1e-9 && current.value > bestState.value)){
                     bestState.copyFrom(current);
                     bestRatio = currentRatio;
                 }
@@ -399,14 +399,13 @@ public class Lab4{
         
         System.out.println("Steps = " + bestState.steps + ", Value = " + bestState.value);
 
-        System.out.println("Path from entry (bottom-right) to exit (top-left):");
+        System.out.println("Path traversed by the robot from entry to exit:");
         for (int i = 0; i < bestState.path.length; i++){
             System.out.print("(" + bestState.path.points[i].x + "," + bestState.path.points[i].y + ")");
             if (i < bestState.path.length - 1) System.out.print(" -> ");
         }
         System.out.println();
         
-        System.out.println("Animating robot movement...");
         try{
             for (int step = 0; step < bestState.path.length; step++){
                 printGrid(grid, rows, cols, 
@@ -419,7 +418,6 @@ public class Lab4{
             System.out.println("Animation interrupted.");
         }
         
-        // Show final grid
         printFinalGrid(grid, rows, cols, endX, endY, bestState.path, bestState.collected);
         
         System.out.println("Robot has reached the exit!");
