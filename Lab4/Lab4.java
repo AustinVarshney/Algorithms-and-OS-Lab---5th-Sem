@@ -2,8 +2,8 @@ import java.util.Scanner;
 
 public class Lab4{
     static final int BLOCKED = -999;
-    static final int MAX_SIZE = 20;
-    static final int MAX_STATES = 1000;
+    static final int MAX_SIZE = 2000;
+    static final int MAX_STATES = 20000;
 
     static void stringCopy(char[] dest, char[] src){
         int i = 0;

@@ -168,7 +168,6 @@ public class Lab42 {
                 int newValue = cur.value + arr[nx][ny];
                 int newSteps = cur.steps + 1;
 
-                // Use the same update logic as Lab4-3.cpp
                 if (newSteps < bestSteps[nx][ny] ||
                     (newSteps == bestSteps[nx][ny] && newValue > bestValue[nx][ny])) {
                     bestValue[nx][ny] = newValue;
@@ -200,10 +199,9 @@ public class Lab42 {
             if (i>0) System.out.print("-> ");
         }
         System.out.println();
-        // Visualize robot movement
         for (int step = pathLen-1; step >= 0; step--) {
             printGrid(arr, n, m, pathX[step], pathY[step], pathX, pathY, pathLen, pathLen-1-step);
-            Thread.sleep(1600); // Slower animation for inspection
+            Thread.sleep(1600);
         }
         System.out.println("\nRobot has reached the exit!\n");
     }
