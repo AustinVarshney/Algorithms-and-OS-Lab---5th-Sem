@@ -1,0 +1,787 @@
+#include "schedulerwindow.h"
+#include <QApplication>
+#include <QHeaderView>
+#include <QMessageBox>
+#include <QPainter>
+#include <QColorDialog>
+#include <QSplitter>
+#include <QGroupBox>
+#include <algorithm>
+#include <cmath>
+
+SchedulerWindow::SchedulerWindow(QWidget *parent)
+    : QMainWindow(parent), currentStep(0), isAnimating(false)
+{
+    setupUI();
+    
+    // Initialize timer
+    animationTimer = new QTimer(this);
+    animationTimer->setSingleShot(false); // Make sure it's repeating
+    connect(animationTimer, &QTimer::timeout, this, &SchedulerWindow::showNextStep);
+    
+    // Add initial empty process for convenience
+    processes.push_back(Process());
+    updateProcessTable();
+}
+
+SchedulerWindow::~SchedulerWindow()
+{
+}
+
+void SchedulerWindow::setupUI()
+{
+    centralWidget = new QWidget;
+    setCentralWidget(centralWidget);
+    mainLayout = new QVBoxLayout(centralWidget);
+    
+    // Create main splitter
+    QSplitter *mainSplitter = new QSplitter(Qt::Horizontal, this);
+    mainLayout->addWidget(mainSplitter);
+    
+    // Left panel
+    QWidget *leftPanel = new QWidget;
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
+    
+    setupProcessInputArea();
+    setupControlArea();
+    setupResultsArea();
+    
+    leftLayout->addWidget(inputGroup);
+    leftLayout->addWidget(controlGroup);
+    leftLayout->addWidget(resultsGroup);
+    leftLayout->addStretch();
+    
+    // Right panel
+    QWidget *rightPanel = new QWidget;
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
+    
+    setupVisualizationArea();
+    rightLayout->addWidget(visualGroup);
+    
+    mainSplitter->addWidget(leftPanel);
+    mainSplitter->addWidget(rightPanel);
+    mainSplitter->setStretchFactor(0, 1);
+    mainSplitter->setStretchFactor(1, 2);
+    
+    setWindowTitle("CPU Scheduling Simulator");
+    setMinimumSize(1200, 800);
+    resize(1400, 900);
+}
+
+void SchedulerWindow::setupProcessInputArea()
+{
+    inputGroup = new QGroupBox("Process Input");
+    QVBoxLayout *inputLayout = new QVBoxLayout(inputGroup);
+    
+    // Process table
+    processTable = new QTableWidget(0, 3);
+    processTable->setHorizontalHeaderLabels({"Process ID", "Arrival Time", "Burst Time"});
+    processTable->horizontalHeader()->setStretchLastSection(true);
+    processTable->setMinimumHeight(200);
+    
+    inputLayout->addWidget(processTable);
+    
+    // Buttons
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    addProcessBtn = new QPushButton("Add Process");
+    removeProcessBtn = new QPushButton("Remove Selected");
+    clearProcessesBtn = new QPushButton("Clear All");
+    
+    buttonLayout->addWidget(addProcessBtn);
+    buttonLayout->addWidget(removeProcessBtn);
+    buttonLayout->addWidget(clearProcessesBtn);
+    buttonLayout->addStretch();
+    
+    inputLayout->addLayout(buttonLayout);
+    
+    // Connect signals
+    connect(addProcessBtn, &QPushButton::clicked, this, &SchedulerWindow::addProcess);
+    connect(removeProcessBtn, &QPushButton::clicked, this, &SchedulerWindow::removeProcess);
+    connect(clearProcessesBtn, &QPushButton::clicked, this, &SchedulerWindow::clearProcesses);
+}
+
+void SchedulerWindow::setupControlArea()
+{
+    controlGroup = new QGroupBox("Simulation Control");
+    QGridLayout *controlLayout = new QGridLayout(controlGroup);
+    
+    // Algorithm selection
+    controlLayout->addWidget(new QLabel("Algorithm:"), 0, 0);
+    algorithmCombo = new QComboBox;
+    algorithmCombo->addItems({"Round Robin (RR)", "Shortest Job First (SJF)", "Shortest Remaining Time First (SRTF)"});
+    controlLayout->addWidget(algorithmCombo, 0, 1);
+    
+    // Quantum input
+    quantumLabel = new QLabel("Time Quantum:");
+    controlLayout->addWidget(quantumLabel, 1, 0);
+    quantumSpin = new QSpinBox;
+    quantumSpin->setRange(1, 100);
+    quantumSpin->setValue(3);
+    controlLayout->addWidget(quantumSpin, 1, 1);
+    
+    // Run button
+    runBtn = new QPushButton("Run Simulation");
+    runBtn->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 10px; }");
+    controlLayout->addWidget(runBtn, 2, 0, 1, 2);
+    
+    // Connect signals
+    connect(algorithmCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SchedulerWindow::onAlgorithmChanged);
+    connect(runBtn, &QPushButton::clicked, this, &SchedulerWindow::runSimulation);
+    
+    // Initial algorithm setup
+    onAlgorithmChanged();
+}
+
+void SchedulerWindow::setupResultsArea()
+{
+    resultsGroup = new QGroupBox("Results");
+    QVBoxLayout *resultsLayout = new QVBoxLayout(resultsGroup);
+    
+    // Results table
+    resultsTable = new QTableWidget(0, 6);
+    resultsTable->setHorizontalHeaderLabels({
+        "Process", "Arrival", "Burst", "Completion", "Turnaround", "Waiting"
+    });
+    resultsTable->horizontalHeader()->setStretchLastSection(true);
+    resultsTable->setMaximumHeight(200);
+    
+    resultsLayout->addWidget(resultsTable);
+    
+    // Average times
+    QHBoxLayout *avgLayout = new QHBoxLayout;
+    avgWaitingLabel = new QLabel("Avg Waiting Time: -");
+    avgTurnaroundLabel = new QLabel("Avg Turnaround Time: -");
+    
+    avgWaitingLabel->setStyleSheet("QLabel { font-weight: bold; color: #2196F3; }");
+    avgTurnaroundLabel->setStyleSheet("QLabel { font-weight: bold; color: #FF9800; }");
+    
+    avgLayout->addWidget(avgWaitingLabel);
+    avgLayout->addWidget(avgTurnaroundLabel);
+    
+    resultsLayout->addLayout(avgLayout);
+}
+
+void SchedulerWindow::setupVisualizationArea()
+{
+    visualGroup = new QGroupBox("Execution Visualization");
+    QVBoxLayout *visualLayout = new QVBoxLayout(visualGroup);
+    
+    // Animation controls
+    animationGroup = new QGroupBox("Animation Controls");
+    QHBoxLayout *animLayout = new QHBoxLayout(animationGroup);
+    
+    playBtn = new QPushButton("▶ Play");
+    pauseBtn = new QPushButton("⏸ Pause");
+    stepBackwardBtn = new QPushButton("⏮ Step Back");
+    stepForwardBtn = new QPushButton("⏭ Step Forward");
+    resetAnimationBtn = new QPushButton("🔄 Reset");
+    
+    playBtn->setEnabled(false);
+    pauseBtn->setEnabled(false);
+    stepBackwardBtn->setEnabled(false);
+    stepForwardBtn->setEnabled(false);
+    resetAnimationBtn->setEnabled(false);
+    
+    animationProgress = new QProgressBar;
+    animationProgress->setVisible(false);
+    
+    animLayout->addWidget(playBtn);
+    animLayout->addWidget(pauseBtn);
+    animLayout->addWidget(stepBackwardBtn);
+    animLayout->addWidget(stepForwardBtn);
+    animLayout->addWidget(resetAnimationBtn);
+    animLayout->addStretch();
+    
+    visualLayout->addWidget(animationGroup);
+    visualLayout->addWidget(animationProgress);
+    
+    // Gantt chart with more space
+    ganttChart = new QFrame;
+    ganttChart->setFrameStyle(QFrame::Box);
+    ganttChart->setMinimumHeight(300); // Increased minimum height
+    ganttChart->setStyleSheet("QFrame { background-color: white; border: 1px solid gray; }");
+    
+    ganttScrollArea = new QScrollArea;
+    ganttScrollArea->setWidget(ganttChart);
+    ganttScrollArea->setWidgetResizable(false); // Important: don't resize widget automatically
+    ganttScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    ganttScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    ganttScrollArea->setMinimumHeight(350); // Increased to show full chart
+    
+    visualLayout->addWidget(new QLabel("Gantt Chart:"));
+    visualLayout->addWidget(ganttScrollArea, 1); // Give it stretch factor
+    
+    // Connect animation signals
+    connect(playBtn, &QPushButton::clicked, this, &SchedulerWindow::playAnimation);
+    connect(pauseBtn, &QPushButton::clicked, this, &SchedulerWindow::pauseAnimation);
+    connect(stepForwardBtn, &QPushButton::clicked, this, &SchedulerWindow::showNextStep);
+    connect(stepBackwardBtn, &QPushButton::clicked, this, &SchedulerWindow::showPreviousStep);
+    connect(resetAnimationBtn, &QPushButton::clicked, this, &SchedulerWindow::resetAnimation);
+}
+
+void SchedulerWindow::addProcess()
+{
+    Process newProcess;
+    newProcess.pid = processes.size() + 1;
+    newProcess.arrivalTime = 0;
+    newProcess.burstTime = 1;
+    newProcess.originalBurstTime = 1;
+    
+    processes.push_back(newProcess);
+    updateProcessTable();
+}
+
+void SchedulerWindow::removeProcess()
+{
+    int currentRow = processTable->currentRow();
+    if (currentRow >= 0 && currentRow < static_cast<int>(processes.size())) {
+        processes.erase(processes.begin() + currentRow);
+        updateProcessTable();
+    }
+}
+
+void SchedulerWindow::clearProcesses()
+{
+    processes.clear();
+    updateProcessTable();
+    resultsTable->setRowCount(0);
+    avgWaitingLabel->setText("Avg Waiting Time: -");
+    avgTurnaroundLabel->setText("Avg Turnaround Time: -");
+}
+
+void SchedulerWindow::updateProcessTable()
+{
+    processTable->setRowCount(processes.size());
+    
+    for (size_t i = 0; i < processes.size(); ++i) {
+        // Process ID (read-only)
+        QTableWidgetItem *pidItem = new QTableWidgetItem(QString("P%1").arg(i + 1));
+        pidItem->setFlags(pidItem->flags() & ~Qt::ItemIsEditable);
+        processTable->setItem(i, 0, pidItem);
+        
+        // Arrival Time
+        QSpinBox *arrivalSpin = new QSpinBox;
+        arrivalSpin->setRange(0, 1000);
+        arrivalSpin->setValue(processes[i].arrivalTime);
+        processTable->setCellWidget(i, 1, arrivalSpin);
+        
+        connect(arrivalSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+                [this, i](int value) { 
+                    if (i < processes.size()) processes[i].arrivalTime = value; 
+                });
+        
+        // Burst Time
+        QSpinBox *burstSpin = new QSpinBox;
+        burstSpin->setRange(1, 1000);
+        burstSpin->setValue(processes[i].burstTime);
+        processTable->setCellWidget(i, 2, burstSpin);
+        
+        connect(burstSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+                [this, i](int value) { 
+                    if (i < processes.size()) {
+                        processes[i].burstTime = value;
+                        processes[i].originalBurstTime = value;
+                    }
+                });
+    }
+}
+
+void SchedulerWindow::onAlgorithmChanged()
+{
+    bool isRoundRobin = (algorithmCombo->currentIndex() == 0);
+    quantumLabel->setVisible(isRoundRobin);
+    quantumSpin->setVisible(isRoundRobin);
+}
+
+void SchedulerWindow::runSimulation()
+{
+    if (processes.empty()) {
+        QMessageBox::warning(this, "Warning", "Please add at least one process.");
+        return;
+    }
+    
+    // Update process data from table
+    for (size_t i = 0; i < processes.size(); ++i) {
+        processes[i].pid = i + 1;
+        processes[i].originalBurstTime = processes[i].burstTime;
+    }
+    
+    // Set processes in scheduler
+    scheduler.setProcesses(processes);
+    
+    // Run selected algorithm
+    switch (algorithmCombo->currentIndex()) {
+        case 0: // Round Robin
+            scheduler.roundRobin(quantumSpin->value());
+            break;
+        case 1: // SJF
+            scheduler.sjf();
+            break;
+        case 2: // SRTF
+            scheduler.srtf();
+            break;
+    }
+    
+    // Get results
+    processes = scheduler.getProcesses();
+    executionSteps = scheduler.getExecutionSteps();
+    
+    // Update displays
+    updateResultsTable();
+    updateGanttChart();
+    
+    // Enable animation controls
+    if (!executionSteps.empty()) {
+        playBtn->setEnabled(true);
+        pauseBtn->setEnabled(false);
+        stepForwardBtn->setEnabled(true);
+        stepBackwardBtn->setEnabled(true);
+        resetAnimationBtn->setEnabled(true);
+        
+        animationProgress->setVisible(true);
+        animationProgress->setMaximum(executionSteps.size() - 1);
+        animationProgress->setValue(0);
+        
+        currentStep = 0;
+    }
+    
+    // Show average times
+    avgWaitingLabel->setText(QString("Avg Waiting Time: %1")
+                            .arg(scheduler.getAverageWaitingTime(), 0, 'f', 2));
+    avgTurnaroundLabel->setText(QString("Avg Turnaround Time: %1")
+                               .arg(scheduler.getAverageTurnaroundTime(), 0, 'f', 2));
+}
+
+void SchedulerWindow::updateResultsTable()
+{
+    resultsTable->setRowCount(processes.size());
+    
+    for (size_t i = 0; i < processes.size(); ++i) {
+        resultsTable->setItem(i, 0, new QTableWidgetItem(QString("P%1").arg(processes[i].pid)));
+        resultsTable->setItem(i, 1, new QTableWidgetItem(QString::number(processes[i].arrivalTime)));
+        resultsTable->setItem(i, 2, new QTableWidgetItem(QString::number(processes[i].originalBurstTime)));
+        resultsTable->setItem(i, 3, new QTableWidgetItem(QString::number(processes[i].completionTime)));
+        resultsTable->setItem(i, 4, new QTableWidgetItem(QString::number(processes[i].turnaroundTime)));
+        resultsTable->setItem(i, 5, new QTableWidgetItem(QString::number(processes[i].waitingTime)));
+    }
+}
+
+void SchedulerWindow::updateGanttChart()
+{
+    if (executionSteps.empty()) {
+        ganttChart->setFixedSize(400, 150);
+        ganttChart->update();
+        return;
+    }
+    
+    // Find max time
+    int maxTime = 0;
+    for (const auto& step : executionSteps) {
+        maxTime = std::max(maxTime, step.time);
+    }
+    maxTime += 2; // Add some padding
+    
+    // Calculate chart dimensions with proper spacing
+    int chartWidth = maxTime * TIME_UNIT_WIDTH + 150; // More margin
+    int chartHeight = algorithmCombo->currentIndex() == 0 ? 280 : 180; // Reduced height to fit queue
+    
+    ganttChart->setFixedSize(chartWidth, chartHeight);
+    
+    // Create a label to display the Gantt chart
+    QLabel* ganttLabel = ganttChart->findChild<QLabel*>("ganttDisplay");
+    if (!ganttLabel) {
+        ganttLabel = new QLabel(ganttChart);
+        ganttLabel->setObjectName("ganttDisplay");
+        ganttLabel->setGeometry(0, 0, chartWidth, chartHeight);
+    } else {
+        ganttLabel->setGeometry(0, 0, chartWidth, chartHeight);
+    }
+    
+    // Create pixmap for drawing
+    QPixmap pixmap(chartWidth, chartHeight);
+    pixmap.fill(Qt::white);
+    
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    // Draw title
+    painter.setFont(QFont("Arial", 12, QFont::Bold));
+    painter.setPen(Qt::black);
+    painter.drawText(10, 25, QString("Gantt Chart - %1").arg(algorithmCombo->currentText()));
+    
+    // Draw time axis
+    painter.setPen(QPen(Qt::black, 2));
+    int axisY = chartHeight - 50;
+    painter.drawLine(50, axisY, chartWidth - 50, axisY);
+    
+    // Draw time labels
+    painter.setFont(QFont("Arial", 9));
+    for (int t = 0; t <= maxTime; t++) {
+        int x = 50 + t * TIME_UNIT_WIDTH;
+        painter.drawLine(x, axisY, x, axisY + 5);
+        painter.drawText(x - 8, axisY + 20, QString::number(t));
+    }
+    
+    // Draw process execution blocks (progressive or complete)
+    drawExecutionBlocks(painter, axisY);
+    
+    painter.end();
+    
+    // Set the pixmap to the label
+    ganttLabel->setPixmap(pixmap);
+    ganttLabel->show();
+    
+    ganttChart->update();
+}
+
+void SchedulerWindow::playAnimation()
+{
+    if (executionSteps.empty()) return;
+    
+    if (currentStep >= static_cast<int>(executionSteps.size()) - 1) {
+        resetAnimation();
+        return;
+    }
+    
+    isAnimating = true;
+    playBtn->setEnabled(false);
+    pauseBtn->setEnabled(true);
+    stepForwardBtn->setEnabled(false);
+    stepBackwardBtn->setEnabled(false);
+    
+    animationTimer->start(1000); // 1 second per step
+}
+
+void SchedulerWindow::pauseAnimation()
+{
+    isAnimating = false;
+    animationTimer->stop();
+    playBtn->setEnabled(true);
+    pauseBtn->setEnabled(false);
+    stepForwardBtn->setEnabled(true);
+    stepBackwardBtn->setEnabled(true);
+}
+
+void SchedulerWindow::showNextStep()
+{
+    if (currentStep < static_cast<int>(executionSteps.size()) - 1) {
+        currentStep++;
+        animationProgress->setValue(currentStep);
+        updateAnimationHighlight();
+        updateGanttChart(); // Refresh Gantt chart to show progress
+    } else if (isAnimating) {
+        pauseAnimation();
+        QMessageBox::information(this, "Animation Complete", "Scheduling simulation finished!");
+    }
+}
+
+void SchedulerWindow::showPreviousStep()
+{
+    if (currentStep > 0) {
+        currentStep--;
+        animationProgress->setValue(currentStep);
+        updateAnimationHighlight();
+        updateGanttChart(); // Refresh Gantt chart to show progress
+    }
+}
+
+void SchedulerWindow::resetAnimation()
+{
+    pauseAnimation();
+    currentStep = 0;
+    if (!executionSteps.empty()) {
+        animationProgress->setValue(0);
+        playBtn->setEnabled(true);
+        stepForwardBtn->setEnabled(true);
+        stepBackwardBtn->setEnabled(true);
+        updateAnimationHighlight();
+    }
+}
+
+// Custom paint event for Gantt chart would go here
+// This is a simplified version - you could enhance it further
+void SchedulerWindow::updateVisualization()
+{
+    // Implementation for updating the visual representation
+    // This could include highlighting current process, updating colors, etc.
+}
+
+void SchedulerWindow::drawProcessBlock(QPainter& painter, int startTime, int endTime, int processId, const QStringList& colors, int /* chartHeight */)
+{
+    if (startTime >= endTime || processId <= 0) return;
+    
+    int x = 50 + startTime * TIME_UNIT_WIDTH;
+    int width = (endTime - startTime) * TIME_UNIT_WIDTH;
+    int y = 50;
+    int height = 40;
+    
+    // Get color for this process
+    QString color = colors[(processId - 1) % colors.size()];
+    
+    // Draw the process block
+    painter.setBrush(QBrush(QColor(color)));
+    painter.setPen(QPen(Qt::black, 1));
+    painter.drawRect(x, y, width, height);
+    
+    // Draw process label
+    painter.setPen(QPen(Qt::black));
+    painter.setFont(QFont("Arial", 10, QFont::Bold));
+    painter.drawText(x + width/2 - 10, y + height/2 + 5, QString("P%1").arg(processId));
+}
+
+void SchedulerWindow::drawExecutionBlocks(QPainter& painter, int axisY)
+{
+    QStringList colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FECA57", "#FF9FF3", "#54A0FF"};
+    
+    int currentProcess = -1;
+    int blockStart = 0;
+    int blockEnd = 0;
+    
+    // Determine how many steps to show (for animation)
+    int maxStepToShow = isAnimating ? currentStep : static_cast<int>(executionSteps.size()) - 1;
+    
+    // Process execution steps to create continuous blocks
+    for (int i = 0; i <= maxStepToShow && i < static_cast<int>(executionSteps.size()); ++i) {
+        const auto& step = executionSteps[i];
+        
+        if (step.action == "running") {
+            if (currentProcess != step.processId) {
+                // Draw previous block if it exists
+                if (currentProcess > 0) {
+                    drawGanttBlock(painter, blockStart, blockEnd, currentProcess, colors, axisY, false);
+                }
+                // Start new block
+                currentProcess = step.processId;
+                blockStart = step.time;
+            }
+            blockEnd = step.time + 1;
+        } else if (step.action == "completed" || step.action == "preempted") {
+            // End current block and show end time
+            if (currentProcess > 0) {
+                drawGanttBlock(painter, blockStart, step.time, currentProcess, colors, axisY, true); // Show end time
+                currentProcess = -1;
+            }
+        } else if (step.action == "idle") {
+            // End any current block and draw idle
+            if (currentProcess > 0) {
+                drawGanttBlock(painter, blockStart, step.time, currentProcess, colors, axisY, false);
+                currentProcess = -1;
+            }
+            // Draw idle block
+            drawIdleBlock(painter, step.time, step.time + 1, axisY);
+        }
+    }
+    
+    // Draw final block if needed and we're showing all steps
+    if (currentProcess > 0 && maxStepToShow >= static_cast<int>(executionSteps.size()) - 1) {
+        drawGanttBlock(painter, blockStart, blockEnd, currentProcess, colors, axisY, true); // Show end time for final block
+    }
+    
+    // Draw queue visualization for Round Robin
+    if (algorithmCombo->currentIndex() == 0) { // Round Robin
+        drawQueueVisualization(painter, axisY);
+    }
+}
+
+void SchedulerWindow::drawGanttBlock(QPainter& painter, int startTime, int endTime, int processId, const QStringList& colors, int axisY, bool showEndTime)
+{
+    if (startTime >= endTime || processId <= 0) return;
+    
+    int x = 50 + startTime * TIME_UNIT_WIDTH;
+    int width = (endTime - startTime) * TIME_UNIT_WIDTH;
+    int y = axisY - 60; // Position above axis, leaving space for queue below
+    int height = 45;    // Standard height
+    
+    // Get color for this process
+    QString color = colors[(processId - 1) % colors.size()];
+    
+    // Draw the process block with border
+    painter.setBrush(QBrush(QColor(color)));
+    painter.setPen(QPen(Qt::black, 2));
+    painter.drawRect(x, y, width, height);
+    
+    // Draw process label
+    painter.setPen(QPen(Qt::black));
+    painter.setFont(QFont("Arial", 10, QFont::Bold));
+    QRect textRect(x, y, width, height);
+    painter.drawText(textRect, Qt::AlignCenter, QString("P%1").arg(processId));
+    
+    // Show end time only when process leaves CPU (completes or gets preempted)
+    if (showEndTime) {
+        painter.setFont(QFont("Arial", 9, QFont::Bold));
+        painter.setPen(QPen(Qt::darkBlue));
+        painter.drawText(x + width - 18, y - 6, QString::number(endTime));
+    }
+}
+
+void SchedulerWindow::drawIdleBlock(QPainter& painter, int startTime, int endTime, int axisY)
+{
+    int x = 50 + startTime * TIME_UNIT_WIDTH;
+    int width = (endTime - startTime) * TIME_UNIT_WIDTH;
+    int y = axisY - 60; // Match Gantt block position
+    int height = 45;    // Match Gantt block height
+    
+    // Draw idle block with hatched pattern
+    painter.setBrush(QBrush(Qt::lightGray, Qt::DiagCrossPattern));
+    painter.setPen(QPen(Qt::gray, 2));
+    painter.drawRect(x, y, width, height);
+    
+    // Draw "IDLE" label
+    painter.setPen(QPen(Qt::black));
+    painter.setFont(QFont("Arial", 9, QFont::Bold));
+    QRect textRect(x, y, width, height);
+    painter.drawText(textRect, Qt::AlignCenter, "IDLE");
+}
+
+void SchedulerWindow::drawQueueVisualization(QPainter& painter, int axisY)
+{
+    // Only show queue for Round Robin and during animation
+    if (algorithmCombo->currentIndex() != 0 || executionSteps.empty()) return;
+    
+    int maxStepToShow = isAnimating ? currentStep : static_cast<int>(executionSteps.size()) - 1;
+    if (maxStepToShow < 0 || maxStepToShow >= static_cast<int>(executionSteps.size())) return;
+    
+    // Get queue state at current step
+    std::vector<int> queueState = getQueueStateAtStep(maxStepToShow);
+    
+    // Position queue closer to the timeline - within visible area
+    int queueSectionY = axisY + 25; // Much closer to timeline
+    
+    // Draw queue title
+    painter.setFont(QFont("Arial", 11, QFont::Bold));
+    painter.setPen(Qt::darkMagenta);
+    painter.drawText(50, queueSectionY, "Ready Queue:");
+    
+    if (queueState.empty()) {
+        painter.setFont(QFont("Arial", 10));
+        painter.setPen(Qt::gray);
+        painter.drawText(150, queueSectionY, "[Empty]");
+        
+        // Show current running process if any
+        int runningProcess = getCurrentRunningProcess(maxStepToShow);
+        if (runningProcess > 0) {
+            painter.setFont(QFont("Arial", 10, QFont::Bold));
+            painter.setPen(Qt::darkGreen);
+            painter.drawText(220, queueSectionY, QString("Running: P%1").arg(runningProcess));
+        }
+        return;
+    }
+    
+    // Draw queue boxes more compactly
+    QStringList colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FECA57", "#FF9FF3", "#54A0FF"};
+    
+    int queueX = 50;
+    int queueY = queueSectionY + 20; // Closer spacing
+    int boxWidth = 35;  // Smaller boxes
+    int boxHeight = 25; // Smaller height
+    int boxSpacing = 8; // Tighter spacing
+    
+    // Draw "Front" label
+    painter.setFont(QFont("Arial", 8, QFont::Bold));
+    painter.setPen(Qt::darkBlue);
+    painter.drawText(queueX, queueY - 3, "Front");
+    
+    for (size_t i = 0; i < queueState.size(); ++i) {
+        int processId = queueState[i];
+        int currentX = queueX + static_cast<int>(i) * (boxWidth + boxSpacing);
+        
+        // Draw queue box
+        QString color = colors[(processId - 1) % colors.size()];
+        painter.setBrush(QBrush(QColor(color).lighter(140))); // Lighter shade for queue
+        painter.setPen(QPen(Qt::black, 1)); // Thinner border
+        painter.drawRect(currentX, queueY, boxWidth, boxHeight);
+        
+        // Draw process label
+        painter.setPen(QPen(Qt::black));
+        painter.setFont(QFont("Arial", 9, QFont::Bold));
+        QRect textRect(currentX, queueY, boxWidth, boxHeight);
+        painter.drawText(textRect, Qt::AlignCenter, QString("P%1").arg(processId));
+        
+        // Draw arrow pointing to next process
+        if (i < queueState.size() - 1) {
+            painter.setPen(QPen(Qt::darkMagenta, 2));
+            int arrowStartX = currentX + boxWidth + 1;
+            int arrowEndX = currentX + boxWidth + boxSpacing - 1;
+            int arrowY = queueY + boxHeight / 2;
+            
+            painter.drawLine(arrowStartX, arrowY, arrowEndX, arrowY);
+            // Arrow head
+            painter.drawLine(arrowEndX, arrowY, arrowEndX - 3, arrowY - 2);
+            painter.drawLine(arrowEndX, arrowY, arrowEndX - 3, arrowY + 2);
+        }
+    }
+    
+    // Draw "Rear" label
+    if (!queueState.empty()) {
+        int rearX = queueX + static_cast<int>(queueState.size() - 1) * (boxWidth + boxSpacing) + boxWidth + 3;
+        painter.drawText(rearX, queueY - 3, "Rear");
+    }
+    
+    // Show current running process on the same line
+    int runningProcess = getCurrentRunningProcess(maxStepToShow);
+    if (runningProcess > 0) {
+        int runningX = queueX + static_cast<int>(queueState.size()) * (boxWidth + boxSpacing) + 50;
+        painter.setFont(QFont("Arial", 10, QFont::Bold));
+        painter.setPen(Qt::darkGreen);
+        painter.drawText(runningX, queueY + boxHeight/2 + 4, QString("Running: P%1").arg(runningProcess));
+    }
+}
+
+void SchedulerWindow::updateAnimationHighlight()
+{
+    // Just update the Gantt chart to show current progress
+    updateGanttChart();
+}
+
+std::vector<int> SchedulerWindow::getQueueStateAtStep(int step)
+{
+    std::vector<int> queueState;
+    int runningProcess = -1;
+    
+    // Simulate the exact Round Robin queue behavior
+    for (int i = 0; i <= step && i < static_cast<int>(executionSteps.size()); ++i) {
+        const auto& execStep = executionSteps[i];
+        
+        if (execStep.action == "added") {
+            // Process arrives and gets added to rear of queue
+            queueState.push_back(execStep.processId);
+        } else if (execStep.action == "running") {
+            // Process starts running - remove from front of queue
+            if (runningProcess != execStep.processId) {
+                if (!queueState.empty() && queueState.front() == execStep.processId) {
+                    queueState.erase(queueState.begin()); // Remove from front
+                }
+                runningProcess = execStep.processId;
+            }
+        } else if (execStep.action == "preempted") {
+            // Process quantum expired, goes to rear of queue
+            if (runningProcess == execStep.processId) {
+                queueState.push_back(execStep.processId);
+                runningProcess = -1;
+            }
+        } else if (execStep.action == "completed") {
+            // Process completed, no longer in system
+            runningProcess = -1;
+        }
+    }
+    
+    return queueState;
+}
+
+int SchedulerWindow::getCurrentRunningProcess(int step)
+{
+    if (step < 0 || step >= static_cast<int>(executionSteps.size())) return -1;
+    
+    // Look backward from current step to find the last "running" action
+    for (int i = step; i >= 0; --i) {
+        const auto& execStep = executionSteps[i];
+        if (execStep.action == "running") {
+            return execStep.processId;
+        } else if (execStep.action == "completed" || execStep.action == "idle") {
+            return -1; // No process running
+        }
+    }
+    
+    return -1;
+}
